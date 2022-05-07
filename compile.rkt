@@ -32,7 +32,7 @@
        (Extern 'raise_error)))
 
 ;; [Listof Defn] -> Asm
-(define (compile-defines ds)
+(define (compile-defines ds) ;; ADD EXPECTED TYPE ets
   (match ds
     ['() (seq)]
     [(cons d ds)
@@ -40,7 +40,7 @@
           (compile-defines ds))]))
 
 ;; Defn -> Asm
-(define (compile-define d)
+(define (compile-define d) ;; ADD EXPECTED TYPE et
   (match d
     [(TypedDefn f xs e xts et)
      (seq (Label (symbol->label f))

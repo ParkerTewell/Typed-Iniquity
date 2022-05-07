@@ -12,9 +12,7 @@
 (define r15 'r15) ; stack pad (non-volatile)
 (define rsp 'rsp) ; stack
 
-
 ;; Op0 -> Asm
-;; Doesn't require type-checking b/c its expecting bytes, which can be any type
 (define (compile-op0 p)
   (match p
     ['void      (seq (Mov rax val-void))]
@@ -26,7 +24,6 @@
                      unpad-stack)]))
 
 ;; Op1 -> Asm
-;; Runtime-checked
 (define (compile-op1 p)
   (match p
     ['add1
@@ -111,7 +108,6 @@
             (Label done)))]))
 
 ;; Op2 -> Asm
-;; Runtime-checked
 (define (compile-op2 p)
   (match p
     ['+
@@ -154,7 +150,7 @@
           (Add rbx 16))]
     ['eq?
      (seq (Pop r8)
-          (eq r8 rax))]
+          (eq r8 rax))]     
     ['make-vector
      (let ((loop (gensym))
            (done (gensym))
@@ -257,7 +253,6 @@
           (Or rax type-char))]))
 
 ;; Op3 -> Asm
-;; Runtime-checked
 (define (compile-op3 p)
   (match p
     ['vector-set!
@@ -280,7 +275,7 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Type checkers
+
 (define (assert-type mask type)
   (λ (arg)
     (seq (Mov r9 arg)
