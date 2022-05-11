@@ -66,7 +66,7 @@
   (zero? (bitwise-xor (bitwise-and v imm-mask) type-str)))
 
 (define types
-  '(Int Bool Char Str Vector Eof Empty Any))
+  '(Int Bool Char Str Vector Eof Empty Box Cons Void Any))
 
 (define (is-member e list)
   (if (eq? (member e list) #f) #f #t))
