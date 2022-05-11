@@ -43,25 +43,56 @@
     [(cons d ds) (begin (compile-check-def d) (compile-check-defs ds))]
     ['() "check completed!"]))
 
+(define (check-prim f e et at)
+  (if (type-contain et at) (void) (error 'type-error "In function.expression: [~a.~a], expected: ~a; actual: ~a" f e et at)))
+
+(define (check-op-return-type f e et at)
+  (if (type-contain et at) (void) (error 'type-error "In function.expression: [~a.~a], expected op return type: ~a; actual: ~a" f e et at)))
+
+(define (check-expression-type f xs e xts et)
+  (match e
+    [(Int i)            (check-prim f e et 'Int)]
+    [(Bool b)           (check-prim f e et 'Bool)]
+    [(Char c)           (check-prim f e et 'Char)]
+    [(Eof)              (check-prim f e et 'Eof)]
+    [(Empty)            (check-prim f e et 'Empty)]
+    [(Var x)            (check-prim f e et (list-ref xts (index-of x xs))]
+    ; [(Var x)            (let ([xt (list-ref xts (index-of x xs))]) (if (type-contain et xt) (void) (error 'type-error "expected: ~a; actual: ~a" et xt))]       ;; type check
+    [(Str s)            (check-prim f e et 'Str)]
+    [(Prim0 p)          (void)]                       ;; 'void 'read-byte 'peek-byte; no need to check
+    [(Prim1 p e0)        
+    (match p
+      ['add1  (begin (check-op-return-type f e et 'Int) ())]
+      ['sub1]
+      ['zero?]
+      ['char?]
+      ['char->integer]
+      ['integer->char]
+      ['eof-object?]
+      ['write-byte]
+      ['box]
+      ['unbox]
+      ['car]
+      ['cdr]
+      ['empty?]
+      ['box?]
+      ['cons?]
+      ['vector?]
+      ['string?]
+      ['vector-length]
+      ['string-length])]        ;; type check
+    [(Prim2 p e1 e2)    (compile-prim2 p e1 e2 c)]    ;; type check
+    [(Prim3 p e1 e2 e3) (compile-prim3 p e1 e2 e3 c)] ;; type check
+    [(If e1 e2 e3)      (compile-if e1 e2 e3 c)]      ;; type check
+    [(Begin e1 e2)      (compile-begin e1 e2 c)]      ;; type check
+    [(Let x e1 e2)      (compile-let x e1 e2 c)]      ;; type check
+    [(App g es)         (compile-app g es c)])])
+  )
+
 (define (compile-check-def d)
-  (match d)
+  (match d
     [(TypedDefn f xs e xts et)
-      (match e
-        [(Int i)            (if (type-contain et 'Int) '() (error "expected: ~a; actual: ~a" (symbol->string et) "Int" ))]
-        [(Bool b)           (if (type-contain et 'Bool) '() (error "expected: ~a; actual: ~a" (symbol->string et) "Bool" ))]
-        [(Char c)           (if (type-contain et 'Int) '() (error "expected: ~a; actual: ~a" (symbol->string et) "Char" ))]
-        [(Eof)              (compile-value eof)]
-        [(Empty)            (compile-value '())]
-        [(Var x)            (compile-variable x c)]       ;; type check
-        [(Str s)            (compile-string s)]
-        [(Prim0 p)          (compile-prim0 p c)]          ;; type check
-        [(Prim1 p e)        (compile-prim1 p e c)]        ;; type check
-        [(Prim2 p e1 e2)    (compile-prim2 p e1 e2 c)]    ;; type check
-        [(Prim3 p e1 e2 e3) (compile-prim3 p e1 e2 e3 c)] ;; type check
-        [(If e1 e2 e3)      (compile-if e1 e2 e3 c)]      ;; type check
-        [(Begin e1 e2)      (compile-begin e1 e2 c)]      ;; type check
-        [(Let x e1 e2)      (compile-let x e1 e2 c)]      ;; type check
-        [(App f es)         (compile-app f es c)])])
+      (check-expression-type f xs e xts et)]))
 
 (define (externs)
   (seq (Extern 'peek_byte)
