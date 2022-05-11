@@ -66,11 +66,67 @@
   (zero? (bitwise-xor (bitwise-and v imm-mask) type-str)))
 
 (define types
-  '(Int Bool Char Str Any))
+  '(Int Bool Char Str Vector Eof Empty Any))
 
-(define (type? types)
-  (λ (x)
+(define (is-member e list)
+  (if (eq? (member e list) #f) #f #t))
+
+(define (type? types x)
     (match x
-      [(? symbol?) (memq x types)]
-      [(list 'Listof s) (and (symbol? s) (memq s types))]
-      [_ #f])))
+      ['() #t]
+      [(? symbol?) (is-member x types)]
+      [(list 'Listof s) (type? types s)]
+      [(cons t ts) (and (type? types t) (type? types ts))]
+      [_ #f]))
+
+;; possible type-format:
+;; 1. A single type
+;; 2. List of type
+;; 3. (Listof type)
+
+(define (type-contain type-format type-query)
+  (match type-format
+    ['() #f]
+    [(list 'Listof tf)
+      (match type-query
+        [(list 'Listof tq) (type-contain tf tq)]
+        [_ #f])]
+    [(? symbol?) (if (eq? type-format 'Any) #t (if (eq? type-query 'Empty) (or (eq? type-format 'Vector) (eq? type-format 'Str)) (eq? type-format type-query)))]
+    [(cons type-a type-format) (or (type-contain type-a type-query) (type-contain type-format type-query))]
+    [_ #f]))
+
+;; possible type-origin-list
+;; 1. A single type
+;; 2. (Listof type)
+;; 3. List of type
+;; 4. Any
+
+;; possible type-ruled-out
+;; 1. A single type 
+;; 2. (Listof type)
+
+
+(define (type-minus type-origin-list type-ruled-out)
+  (match type-origin-list
+    ['() '()]
+    ['Any 
+      (match type-ruled-out 
+        [(? symbol?) (append (remove* '(Any type-ruled-out) types) '((Listof Any)))]
+        [(list 'Listof tf) (append (remove 'Any types) `((Listof ,(type-minus 'Any tf))))]
+        [_ (error "type-error" "invalid type: ~a" type-ruled-out)])]
+    [(? symbol?) (if (eq? type-origin-list type-ruled-out) '() type-origin-list)]
+    [(list 'Listof tf)
+      (match type-ruled-out
+        [(? symbol?) type-origin-list]
+        [(list 'Listof tr) (let ([empty-ele-lst (type-minus tf tr)])
+          (if (eq? empty-ele-lst '()) '()
+            (if (eq? (length empty-ele-lst) 1)
+              (list 'Listof (list-ref empty-ele-lst 0))
+              (list 'Listof empty-ele-lst))))]
+        [_ (error "type-error" "invalid type: ~a" type-ruled-out)])]
+    [(cons type-first types-remaining) 
+      (let ([ele-listele-lst (type-minus type-first type-ruled-out)])
+        (match ele-listele-lst
+          [(? symbol? ele-listele-lst) (append `(,ele-listele-lst) (type-minus types-remaining type-ruled-out))]
+          [(list 'Listof _) (append `(,ele-listele-lst) (type-minus types-remaining type-ruled-out))]
+          [_ (append ele-listele-lst (type-minus types-remaining type-ruled-out))]))]))

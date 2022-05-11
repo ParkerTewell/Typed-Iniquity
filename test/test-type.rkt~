@@ -1,0 +1,25 @@
+(require types.rkt)
+
+(check-eq? ((type? types) 'Int) #t)
+(check-eq? ((type? types) '(Listof Int)) #t)
+(check-eq? ((type? types) '(Int Any)) #t)
+
+(check-eq? (type-contain 'Int 'Int) #t)
+(check-eq? (type-contain 'Any 'Int) #t)
+(check-eq? (type-contain 'Int 'Any) #f)
+(check-eq? (type-contain '(Listof Int) 'Any) #f)
+(check-eq? (type-contain '(Listof Int) 'Int) #f)
+(check-eq? (type-contain '(Listof Any) 'Int) #f)
+(check-eq? (type-contain '(Listof Any) '(Listof Int)) #t)
+(check-eq? (type-contain 'Any '(Listof Int)) #t)
+(check-eq? (type-contain '(Int Char) 'Int) #t)
+
+
+(define (type-contain type-format type-query)
+  if list
+    type-query in type-format
+  if symbol
+    if any #t
+    if eq #t
+    else #f
+)

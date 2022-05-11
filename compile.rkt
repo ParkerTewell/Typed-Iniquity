@@ -12,18 +12,56 @@
 
 ;; Prog -> Asm
 (define (compile p)
+  (begin 
+    (compile-check-prog p)
+    (match p
+      [(Prog ds e)  
+      (prog (externs)
+            (Global 'entry)
+            (Label 'entry)
+            (Mov rbx rdi)   ; recv heap pointer
+            (compile-e e '() )
+            (Ret)
+            (compile-defines ds)
+            (Label 'raise_error_align)
+            pad-stack
+            (Call 'raise_error))])
+    )
+  )
+
+;; check Prog
+(define (compile-check-prog p)
   (match p
-    [(Prog ds e)  
-     (prog (externs)
-           (Global 'entry)
-           (Label 'entry)
-           (Mov rbx rdi)   ; recv heap pointer
-           (compile-e e '() )
-           (Ret)
-           (compile-defines ds)
-           (Label 'raise_error_align)
-           pad-stack
-           (Call 'raise_error))]))
+    [(Prog ds e)
+      (begin
+        (compile-check-defs ds)
+        (conpile-check-e ds e)
+      )]))
+
+(define (compile-check-defs ds)
+  (match ds
+    [(cons d ds) (begin (compile-check-def d) (compile-check-defs ds))]
+    ['() "check completed!"]))
+
+(define (compile-check-def d)
+  (match d)
+    [(TypedDefn f xs e xts et)
+      (match e
+        [(Int i)            (if (type-contain et 'Int) '() (error "expected: ~a; actual: ~a" (symbol->string et) "Int" ))]
+        [(Bool b)           (if (type-contain et 'Bool) '() (error "expected: ~a; actual: ~a" (symbol->string et) "Bool" ))]
+        [(Char c)           (if (type-contain et 'Int) '() (error "expected: ~a; actual: ~a" (symbol->string et) "Char" ))]
+        [(Eof)              (compile-value eof)]
+        [(Empty)            (compile-value '())]
+        [(Var x)            (compile-variable x c)]       ;; type check
+        [(Str s)            (compile-string s)]
+        [(Prim0 p)          (compile-prim0 p c)]          ;; type check
+        [(Prim1 p e)        (compile-prim1 p e c)]        ;; type check
+        [(Prim2 p e1 e2)    (compile-prim2 p e1 e2 c)]    ;; type check
+        [(Prim3 p e1 e2 e3) (compile-prim3 p e1 e2 e3 c)] ;; type check
+        [(If e1 e2 e3)      (compile-if e1 e2 e3 c)]      ;; type check
+        [(Begin e1 e2)      (compile-begin e1 e2 c)]      ;; type check
+        [(Let x e1 e2)      (compile-let x e1 e2 c)]      ;; type check
+        [(App f es)         (compile-app f es c)])])
 
 (define (externs)
   (seq (Extern 'peek_byte)
@@ -50,7 +88,7 @@
 
 ;; Expr CEnv -> Asm
 ;; check if c matches the type of xt
-(define (compile-e e c xt)
+(define (compile-e e c xts et)
   (match e
     [(Int i)            (compile-value i)]
     [(Bool b)           (compile-value b)]
