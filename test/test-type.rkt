@@ -41,3 +41,25 @@
 (type-minus '((Listof (Int Bool)) Bool) '(Listof Int))
 (type-minus 'Any '(Listof Int))
 (type-minus 'Any 'Int)
+
+;'()
+;'Any
+;'Bool
+;'Int
+;'(Listof Char)
+;'(Listof Str)
+;'(Char (Listof Bool))
+;'((Listof Bool) Char)
+;'(Int (Listof Vector))
+;'((Listof Vector) Int)
+
+
+
+(type-add 'Bool '(Listof Str))
+(type-add '(Listof Char) '(Listof Str))
+(type-add '(Char (Listof Bool)) '(Listof Str))
+(type-add 'Bool '(Int (Listof Vector)))
+(type-add '(Listof Char) '(Int (Listof Vector))) ;;
+(type-add '(Char (Listof Bool)) '(Int (Listof Vector))) ;;
+(type-add 'Bool '(Listof Str))
+(type-add '(Listof Char) '(Listof Str))

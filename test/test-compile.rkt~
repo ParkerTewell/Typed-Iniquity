@@ -1,0 +1,19 @@
+#lang typed/racket
+ 
+; (: add-t (-> Integer Integer Integer)
+; (define (add p1 p2)
+;   (let ([p1 #t]) (+ p1 p2)))
+
+; (: add-2 (-> Integer Integer Integer)
+; (define (add-2 p1 p2)
+;   (let ([p3 2]) (+ (+ p1 p2) p3)))
+
+;; Combined Function 
+(: int-or-string (-> Bool (U String Integer)))
+(define (int-or-string b)
+    (if b 2 "Hello"))
+
+
+(: bool-to-int (-> Bool Integer))
+(define (string-to-int b)
+  (string-length (int-or-string b)))

@@ -280,6 +280,9 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define op1-predicates  '(char? eof-object? empty? box? cons? vector? string?))
+
 ;; Type checkers
 (define (assert-type mask type)
   (λ (arg)

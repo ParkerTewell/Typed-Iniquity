@@ -65,33 +65,64 @@
 (define (str-bits? v)
   (zero? (bitwise-xor (bitwise-and v imm-mask) type-str)))
 
+;; TODO: Expand Int to Byte and UInt
 (define types
   '(Int Bool Char Str Vector Eof Empty Box Cons Void Any))
 
 (define (is-member e list)
   (if (eq? (member e list) #f) #f #t))
 
-(define (type? types x)
-    (match x
-      ['() #t]
-      [(? symbol?) (is-member x types)]
-      [(list 'Listof s) (type? types s)]
-      [(cons t ts) (and (type? types t) (type? types ts))]
-      [_ #f]))
+(define (append-element lst elem)
+  (append lst (list elem)))
 
+;; Only consider single item
+;; If pass (list type), check each of them
+(define (type? types x)
+  (match x
+    ['() #t]
+    [(? symbol?) (is-member x types)]
+    [(list 'Listof s) (type? types s)]
+    [(cons t ts) (and (type? types t) (type? types ts))]
+    [_ #f]))
+
+;; (type-replace-id xts id pt) 
+;; (type-rule-out-id xts id pt)
+
+(define (type-replace-id xts id pt)
+  (append (reverse (list-tail (reverse xts) (- (length xts) id))) `(,pt) (list-tail xts (+ id 1))))
+
+(define (type-rule-out-id xts id pt)
+  (append (reverse (list-tail (reverse xts) (- (length xts) id))) `(,(type-minus (list-ref xts id) pt)) (list-tail xts (+ id 1))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; TODO: support check (Listof, Cons)
+
+;; Only consider when type-query isn't a list
 ;; possible type-format:
 ;; 1. A single type
 ;; 2. List of type
 ;; 3. (Listof type)
 
+;; Special:
+;; 1. Any contains anything
+;; 2. Empty can be contained in Vector/String
+;; 3. Listof can be contained in Cons
+
 (define (type-contain type-format type-query)
   (match type-format
     ['() #f]
     [(list 'Listof tf)
-      (match type-query
-        [(list 'Listof tq) (type-contain tf tq)]
-        [_ #f])]
-    [(? symbol?) (if (eq? type-format 'Any) #t (if (eq? type-query 'Empty) (or (eq? type-format 'Vector) (eq? type-format 'Str)) (eq? type-format type-query)))]
+     (match type-query
+       [(list 'Listof tq) (type-contain tf tq)]
+       [_ #f])]
+    [(? symbol?) 
+     (if (eq? type-format 'Any) #t 
+      (if (eq? type-query 'Empty) (or (eq? type-format 'Vector) (eq? type-format 'Str) (eq? type-format 'Empty))
+        (if (eq? type-format 'Cons) 
+          (match type-query
+            [(list 'Listof tq) #t]
+            ['Cons #t]
+            [_ #f]) (eq? type-format type-query))))]
     [(cons type-a type-format) (or (type-contain type-a type-query) (type-contain type-format type-query))]
     [_ #f]))
 
@@ -110,23 +141,78 @@
   (match type-origin-list
     ['() '()]
     ['Any 
-      (match type-ruled-out 
-        [(? symbol?) (append (remove* '(Any type-ruled-out) types) '((Listof Any)))]
-        [(list 'Listof tf) (append (remove 'Any types) `((Listof ,(type-minus 'Any tf))))]
-        [_ (error "type-error" "invalid type: ~a" type-ruled-out)])]
+     (match type-ruled-out 
+       [(? symbol?) (append (remove* '(Any type-ruled-out) types) '((Listof Any)))]
+       [(list 'Listof tf) (append (remove 'Any types) `((Listof ,(type-minus 'Any tf))))]
+       [_ (error "type-error" "invalid type: ~a" type-ruled-out)])]
     [(? symbol?) (if (eq? type-origin-list type-ruled-out) '() type-origin-list)]
     [(list 'Listof tf)
-      (match type-ruled-out
-        [(? symbol?) type-origin-list]
-        [(list 'Listof tr) (let ([empty-ele-lst (type-minus tf tr)])
-          (if (eq? empty-ele-lst '()) '()
-            (if (eq? (length empty-ele-lst) 1)
-              (list 'Listof (list-ref empty-ele-lst 0))
-              (list 'Listof empty-ele-lst))))]
-        [_ (error "type-error" "invalid type: ~a" type-ruled-out)])]
+     (match type-ruled-out
+       [(? symbol?) type-origin-list]
+       [(list 'Listof tr) (let ([empty-ele-lst (type-minus tf tr)])
+                            (if (eq? empty-ele-lst '()) '()
+                                (if (eq? (length empty-ele-lst) 1)
+                                    (list 'Listof (list-ref empty-ele-lst 0))
+                                    (list 'Listof empty-ele-lst))))]
+       [_ (error "type-error" "invalid type: ~a" type-ruled-out)])]
     [(cons type-first types-remaining) 
-      (let ([ele-listele-lst (type-minus type-first type-ruled-out)])
-        (match ele-listele-lst
-          [(? symbol? ele-listele-lst) (append `(,ele-listele-lst) (type-minus types-remaining type-ruled-out))]
-          [(list 'Listof _) (append `(,ele-listele-lst) (type-minus types-remaining type-ruled-out))]
-          [_ (append ele-listele-lst (type-minus types-remaining type-ruled-out))]))]))
+     (let ([ele-listele-lst (type-minus type-first type-ruled-out)])
+       (match ele-listele-lst
+         [(? symbol? ele-listele-lst) (append `(,ele-listele-lst) (type-minus types-remaining type-ruled-out))]
+         [(list 'Listof _) (append `(,ele-listele-lst) (type-minus types-remaining type-ruled-out))]
+         [_ (append ele-listele-lst (type-minus types-remaining type-ruled-out))]))]))
+
+;; possible Input:
+;; 1. '()
+;; 2. 'Any
+;; 3. 'symbol
+;; 4. (Listof xx)
+;; 5. (list Type)
+
+(define (type-add type-or-lst-1 type-or-lst-2)
+  (match type-or-lst-1
+    ['() type-or-lst-2]
+    ['Any 'Any]
+    [(? symbol?)
+     (match type-or-lst-2
+       ['() type-or-lst-1]
+       ['Any 'Any]
+       [(? symbol?) (if (eq? type-or-lst-1 type-or-lst-2) type-or-lst-1 `(,type-or-lst-1 ,type-or-lst-2))]
+       [(list 'Listof tf) `(,type-or-lst-1 ,type-or-lst-2)]
+       [(cons type-first types-remaining)
+        (if (eq? types-remaining '()) `(,type-or-lst-1 ,type-first)
+        (match type-first
+          [(? symbol?) (if (type-contain type-first type-or-lst-1) type-or-lst-2 (append `(,type-first) (type-add type-or-lst-1 types-remaining)))]
+          [(list 'Listof tf) (append `(,type-first) (type-add type-or-lst-1 types-remaining))]))])]
+    [(list 'Listof tf)
+     (match type-or-lst-2
+       ['() type-or-lst-1]
+       ['Any 'Any]
+       [(list 'Listof tf2) 
+        (if (type-contain tf tf2) type-or-lst-1 
+            (if (type-contain tf2 tf) type-or-lst-2 
+                `(Listof ,(type-add tf tf2))))]
+       [(? symbol?) `(,type-or-lst-1 ,type-or-lst-2)]
+       [(cons type-first types-remaining)
+        (match type-first
+          [(list 'Listof tf2) (if (type-contain type-first type-or-lst-1) type-or-lst-2 (type-add `(Listof ,(type-add tf tf2)) types-remaining))]
+          [(? symbol?) (if (eq? types-remaining '()) `(,type-first ,type-or-lst-1) (type-add type-first (type-add type-or-lst-1 types-remaining)))]) 
+        ])]
+    [(cons type-first types-remaining)
+     (match type-or-lst-2
+       ['() type-or-lst-1]
+       ['Any 'Any]
+       [(list 'Listof tf) 
+        (match type-first
+          [(list 'Listof tf2) 
+           (if (type-contain tf tf2) type-or-lst-1
+               (if (type-contain tf2 tf) (type-add type-or-lst-2 types-remaining)
+                   (type-add `(Listof ,(type-add tf tf2)) types-remaining)))]
+          [(? symbol?) (type-add type-first (type-add type-or-lst-2 types-remaining))])]
+       [(? symbol?)
+        (match type-first
+          [(list 'Listof tf2) (append `(,type-first) (type-add type-or-lst-2 types-remaining))]
+          [(? symbol?) (if (type-contain type-first type-or-lst-2) (type-or-lst-1) 
+                           (if (type-contain type-or-lst-2 type-first) (type-add type-or-lst-2 types-remaining)
+                               (append `(,type-first) (type-add type-or-lst-2 types-remaining))))])]
+       [(cons type-first-2 types-remaining-2) (type-add types-remaining (type-add type-first type-or-lst-2))])]))
