@@ -1,0 +1,6 @@
+ #lang typed/racket
+ 
+(: add-1 (-> Any Integer))
+(define (add1 x) (if (number? x) (add1 x) 0))
+
+ 

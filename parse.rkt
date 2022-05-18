@@ -104,7 +104,7 @@
   '(read-byte peek-byte void))
 
 (define op1
-  '(add1 sub1 zero? char? write-byte eof-object?
+  '(add1 sub1 zero? char? int? write-byte eof-object?
          integer->char char->integer
          box unbox empty? cons? box? car cdr
          vector? vector-length string? string-length))

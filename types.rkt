@@ -156,13 +156,13 @@
             [(list 'Listof tq) #t]
             ['Cons #t]
             [_ #f]) (eq? type-format type-query))))]
-    [(cons type-a type-format) (type-contain-list type-format type-query)]
+    [(cons type-a type-b) (type-contain-list type-format type-query)]
     [_ #f]))
 
 (define (type-contain-list type-format type-query)
   (match type-format
     ['() #f]
-    [(cons type-a type-format) (or (type-contain-single type-a type-format) (type-contain-list type-format type-query))]))
+    [(cons type-a type-format) (or (type-contain-single type-a type-query) (type-contain-list type-format type-query))]))
 
 ;; possible type-origin-list
 ;; 1. A single type

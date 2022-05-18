@@ -40,6 +40,8 @@
           (eq-imm 0))]
     ['char?
      (type-pred mask-char type-char)]
+    ['int?
+      (type-pred mask-int type-int)]
     ['char->integer
      (seq (assert-char rax)
           (Sar rax char-shift)
@@ -281,7 +283,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define op1-predicates  '(char? eof-object? empty? box? cons? vector? string?))
+(define op1-predicates  '(char? eof-object? empty? box? cons? vector? string? int?))
 
 ;; Type checkers
 (define (assert-type mask type)

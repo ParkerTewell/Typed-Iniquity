@@ -89,6 +89,7 @@
 
 (define (check-if-clauses f xs xts e2 e3 et p id prog)
   (match p
+    ['int?         (check-if-clauses-type f xs xts e2 e3 et 'Int id prog)  ]
     ['char?        (check-if-clauses-type f xs xts e2 e3 et 'Char id prog) ]
     ['eof-object?  (check-if-clauses-type f xs xts e2 e3 et 'Eof id prog) ]
     ['empty?       (check-if-clauses-type f xs xts e2 e3 et 'Empty id prog) ]
@@ -99,6 +100,7 @@
 
 (define (check-if-clauses? xs xts e2 e3 et p id prog)
   (match p
+    ['int?         (check-if-clauses-type? xs xts e2 e3 et 'Int id prog)  ]
     ['char?        (check-if-clauses-type? xs xts e2 e3 et 'Char id prog) ]
     ['eof-object?  (check-if-clauses-type? xs xts e2 e3 et 'Eof id prog) ]
     ['empty?       (check-if-clauses-type? xs xts e2 e3 et 'Empty id prog) ]
@@ -127,6 +129,7 @@
 
 (define (get-if-clauses-expression-type xs xts e2 e3 p id prog)
   (match p
+    ['int?         (get-if-clauses-expression-type-internal xs xts e2 e3 'Int id prog)  ]
     ['char?        (get-if-clauses-expression-type-internal xs xts e2 e3 'Char id prog) ]
     ['eof-object?  (get-if-clauses-expression-type-internal xs xts e2 e3 'Eof id prog) ]
     ['empty?       (get-if-clauses-expression-type-internal xs xts e2 e3 'Empty id prog) ]
@@ -186,6 +189,7 @@
         ['add1          'Int]  ; Int -> Int
         ['sub1          'Int]  ; Int -> Int
         ['zero?         'Bool] ; Int -> Bool
+        ['int?          'Bool]
         ['char?         'Bool] ; Any -> Bool
         ['char->integer 'Int]  ; Char -> Int
         ['integer->char 'Char] ; Int -> Char
@@ -276,6 +280,7 @@
         ['sub1          (begin (check-op-return-type f e et 'Int) (check-expression-type f xs e0 xts 'Int prog))]  ; Int -> Int
         ['zero?         (begin (check-op-return-type f e et 'Bool) (check-expression-type f xs e0 xts 'Int prog))] ; Int -> Bool
         ['char?         (begin (check-op-return-type f e et 'Bool) (check-expression-type f xs e0 xts '() prog))] ; Any -> Bool
+        ['int?         (begin (check-op-return-type f e et 'Bool) (check-expression-type f xs e0 xts '() prog))] ; Any -> Bool
         ['char->integer (begin (check-op-return-type f e et 'Int) (check-expression-type f xs e0 xts 'Char prog))]  ; Char -> Int
         ['integer->char (begin (check-op-return-type f e et 'Char) (check-expression-type f xs e0 xts 'Int prog))] ; Int -> Char
         ['eof-object?   (begin (check-op-return-type f e et 'Bool) (check-expression-type f xs e0 xts '() prog))] ; Any -> Bool
@@ -361,6 +366,7 @@
         ['sub1          (begin (check-op-return-type? et 'Int) (check-expression-type? xs e0 xts 'Int prog))]  ; Int -> Int
         ['zero?         (begin (check-op-return-type? et 'Bool) (check-expression-type? xs e0 xts 'Int prog))] ; Any -> Bool
         ['char?         (check-op-return-type? et 'Bool)] ; Any -> Bool
+        ['int?          (check-op-return-type? et 'Bool)] ; Any -> Bool
         ['char->integer (begin (check-op-return-type? et 'Int) (check-expression-type? xs e0 xts 'Char prog))]  ; Char -> Int
         ['integer->char (begin (check-op-return-type? et 'Char) (check-expression-type? xs e0 xts 'Int prog))] ; Int -> Char
         ['eof-object?   (check-op-return-type? et 'Bool)] ; Any -> Bool
