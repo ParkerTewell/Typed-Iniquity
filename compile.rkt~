@@ -455,10 +455,17 @@
 (define (compile-value v)
   (seq (Mov rax (imm->bits v))))
 
+;; For each xt in xts check if x is a part of it
+;; Raises an error otherwies
+;; Assumes x is in rax
+(define (check-type x xts)
+  (if (type? xts x) (seq (Jmp 'raise_error_align)) (seq)))
+
 ;; Id CEnv -> Asm
-(define (compile-variable x c)
+(define (compile-variable x c xts)
   (let ((i (lookup x c)))
-    (seq (Mov rax (Offset rsp i)))))
+    (seq (Mov rax (Offset rsp i))
+         (check-type x xts))))
 
 ;; String -> Asm
 (define (compile-string s)
