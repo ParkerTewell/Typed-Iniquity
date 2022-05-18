@@ -266,7 +266,11 @@
     [(Char c)           (check-prim f e et 'Char)]
     [(Eof)              (check-prim f e et 'Eof)]
     [(Empty)            (check-prim f e et 'Empty)]
+<<<<<<< HEAD
+    [(Var x)            (check-prim f e et (list-ref xts (index-of x xs)))]
+=======
     [(Var x)            (let ([id-or-f (index-of xs x)]) (if (not id-or-f) (error 'undefined-error "In function.expression: [~a.~a], undefined variable: ~a" f e x) (check-prim f e et (list-ref xts id-or-f))))]
+>>>>>>> 429942efc8ad2290316a94ed7cd703088548e6c2
     ; [(Var x)            (let ([xt (list-ref xts (index-of x xs))]) (if (type-contain et xt) (void) (error 'type-error "expected: ~a; actual: ~a" et xt))]       ;; type check
     [(Str s)            (check-prim f e et 'Str)]
     [(Prim0 p)
@@ -461,7 +465,7 @@
     [(Char c)           (compile-value c)]
     [(Eof)              (compile-value eof)]
     [(Empty)            (compile-value '())]
-    [(Var x)            (compile-variable x c)]       ;; type check
+    [(Var x)            (compile-variable x c xts)]   ;; type check
     [(Str s)            (compile-string s)]
     [(Prim0 p)          (compile-prim0 p c)]          ;; type check
     [(Prim1 p e)        (compile-prim1 p e c)]        ;; type check
@@ -476,10 +480,17 @@
 (define (compile-value v)
   (seq (Mov rax (imm->bits v))))
 
+;; For each xt in xts check if x is a part of it
+;; Raises an error otherwies
+;; Assumes x is in rax
+(define (check-type x xts)
+  (if (type? xts x) (seq (Jmp 'raise_error_align)) (seq)))
+
 ;; Id CEnv -> Asm
-(define (compile-variable x c)
+(define (compile-variable x c xts)
   (let ((i (lookup x c)))
-    (seq (Mov rax (Offset rsp i)))))
+    (seq (Mov rax (Offset rsp i))
+         (check-type x xts))))
 
 ;; String -> Asm
 (define (compile-string s)
