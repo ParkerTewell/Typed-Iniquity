@@ -27,7 +27,7 @@
      (match ta
        [(TypeAnno g xts et)
         (if (eq? f g) (TypedDefn f xs e xts et) (find-type-defn f xs e tas))])]
-    ['() (let ([xts (generate-list (length xs) 'Any)] [et 'Any]) (TypedDefn f xs e xts et))]))
+    ['() (let ([xts (generate-list (length xs) '())] [et '()]) (TypedDefn f xs e xts et))]))
 
 (define (generate-list len symbol)
   (if (= len 0) '() (cons symbol (generate-list (- len 1) symbol))))
@@ -69,9 +69,9 @@
 ;; S-Expr -> TypeDefn
 (define (parse-type t)
   (match t
-    [(list ': (? symbol? f) (list-rest (? eq? '->) xts) et)
-     (if (and (andmap (type? types) xts) ((type? types) et))
-         (TypeAnno f xts et)
+    [(list ': f (list-rest '-> xts))
+     (if (and (andmap type? (map type-convert (all-but-last xts))) (type? (type-convert (last-element xts))))
+         (TypeAnno f (map type-convert (all-but-last xts)) (type-convert (last-element xts)))
          (error "parse type definition error"))]
     [_ (error "Parse typedefn error" t)]))
 

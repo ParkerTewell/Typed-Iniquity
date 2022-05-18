@@ -1,0 +1,7 @@
+#lang typed/racket
+(require "/Users/xy/Project/Typed-Iniquity/types.rkt")
+
+(define (parse s)
+  (match s
+    [(list ': f (list-rest '-> xts)) (xts)]
+    [_ "try again"]))

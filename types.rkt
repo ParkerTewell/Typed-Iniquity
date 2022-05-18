@@ -72,27 +72,36 @@
 (define (is-member e list)
   (if (eq? (member e list) #f) #f #t))
 
+(define (all-but-last ele-list)
+  (reverse (cdr (reverse ele-list))))
+
+(define (last-element ele-list)
+  (car (reverse ele-list)))
+
 (define (append-element lst elem)
   (append lst (list elem)))
 
 ;; Only consider single item
 ;; If pass (list type), check each of them
-(define (type? types x)
+(define (type? x)
   (match x
     ['() #t]
     [(? symbol?) (is-member x types)]
-    [(list 'Listof s) (type? types s)]
-    [(cons t ts) (and (type? types t) (type? types ts))]
+    [(list 'Listof s) (type? s)]
+    [(cons t ts) (and (type? t) (type? ts))]
     [_ #f]))
 
 ;; (type-replace-id xts id pt) 
 ;; (type-rule-out-id xts id pt)
 
+(define (type-remain xts id pt)
+  (type-minus (list-ref xts id) pt))
+
 (define (type-replace-id xts id pt)
   (append (reverse (list-tail (reverse xts) (- (length xts) id))) `(,pt) (list-tail xts (+ id 1))))
 
 (define (type-rule-out-id xts id pt)
-  (append (reverse (list-tail (reverse xts) (- (length xts) id))) `(,(type-minus (list-ref xts id) pt)) (list-tail xts (+ id 1))))
+  (append (reverse (list-tail (reverse xts) (- (length xts) id))) `(,(type-remain xts id pt)) (list-tail xts (+ id 1))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; TODO: support check (Listof, Cons)
@@ -108,23 +117,52 @@
 ;; 2. Empty can be contained in Vector/String
 ;; 3. Listof can be contained in Cons
 
+(define type-convert (λ (p) (match p
+                            [(list-rest 'U xts) (map type-convert xts)]
+                            ['Integer 'Int]
+                            ['Boolean 'Bool]
+                            ['String 'Str]
+                            ['(Listof Integer) '(Listof Int)]
+                            ['(Listof Boolean) '(Listof Bool)]
+                            ['(Listof String) '(Listof Str)]                            
+                            [_ p])))
+
+
 (define (type-contain type-format type-query)
+  (match type-query
+    ['() #t]
+    [(list 'Listof tf) (type-contain-single type-format type-query)]
+    [(cons type-first type-remainings) (and (type-contain-single type-format type-first) (type-contain type-format type-remainings))]
+    [_ (type-contain-single type-format type-query)]))
+
+(define (type-contain-single type-format type-query)
   (match type-format
-    ['() #f]
+    ['() #t]
     [(list 'Listof tf)
      (match type-query
+       ['Empty #t]
        [(list 'Listof tq) (type-contain tf tq)]
        [_ #f])]
     [(? symbol?) 
      (if (eq? type-format 'Any) #t 
-      (if (eq? type-query 'Empty) (or (eq? type-format 'Vector) (eq? type-format 'Str) (eq? type-format 'Empty))
+      (if (eq? type-query 'Empty) (match type-format
+        ['Cons #t]
+        ['Vector #t]
+        ['Str #t]
+        ['Empty #t]
+        [_ #f]) 
         (if (eq? type-format 'Cons) 
           (match type-query
             [(list 'Listof tq) #t]
             ['Cons #t]
             [_ #f]) (eq? type-format type-query))))]
-    [(cons type-a type-format) (or (type-contain type-a type-query) (type-contain type-format type-query))]
+    [(cons type-a type-format) (type-contain-list type-format type-query)]
     [_ #f]))
+
+(define (type-contain-list type-format type-query)
+  (match type-format
+    ['() #f]
+    [(cons type-a type-format) (or (type-contain-single type-a type-format) (type-contain-list type-format type-query))]))
 
 ;; possible type-origin-list
 ;; 1. A single type

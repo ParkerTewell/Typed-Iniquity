@@ -20,7 +20,7 @@
             (Global 'entry)
             (Label 'entry)
             (Mov rbx rdi)   ; recv heap pointer
-            (compile-e e '() )
+            (compile-e e '())
             (Ret)
             (compile-defines ds)
             (Label 'raise_error_align)
@@ -35,8 +35,11 @@
     [(Prog ds e)
       (begin
         (compile-check-defs ds p)
-        (conpile-check-e ds e)
+        (compile-check-e e p)
       )]))
+
+(define (compile-check-e e p)
+  (check-expression-type 'main '() e '() '() p))
 
 (define (compile-check-defs ds p)
   (match ds
@@ -58,7 +61,7 @@
 (define (check-prim-list? et ats) (check-prim-list-idx? et ats 0))
 
 (define (check-prim-list-idx? et ats idx)
-  (if (= idx (length ats) 
+  (if (= idx (length ats)) 
     #f  
     (if (check-prim? et (list-ref ats idx)) #t (check-prim-list-idx? et ats (+ idx 1)))))
 
@@ -67,49 +70,81 @@
 
 (define (check-op-return-type? et at) (check-prim? et at))
 
-(define (check-expressions-type f xs es xts et)
-  (if (check-expressions-type? xs es xts et) (void) (error 'type-error "In function.expressions: [~a.~a], expected op return type: ~a" f es et)))
+(define (check-expressions-type f xs es xts et prog)
+  (if (check-expressions-type? xs es xts et prog) (void) (error 'type-error "In function.expressions: [~a.~a], expected op return type: ~a" f es et)))
 
-(define (check-expressions-type? xs es xts et)
+(define (check-expressions-type? xs es xts et prog)
   (match es
     ['() #f]
-    [(cons e es) (if (check-expression-type? xs e xts et) #t (check-expressions-type? xs es xts et))]))
+    [(cons e es) (if (check-expression-type? xs e xts et prog) #t (check-expressions-type? xs es xts et prog))]))
 
-(define (check-if-clauses f xs xts e2 e3 et p id)
+(define (check-expression-types f xs e xts ets prog)
+  (if (check-expression-types? xs e xts ets prog) (void) (error 'type-error "In function.expressions: [~a.~a], expected op return type: ~a" f e ets)))
+
+(define (check-expression-types? xs e xts ets prog)
+  (match ets
+    ['() #f]
+    [(cons et ets) (if (check-expression-type? xs e xts et prog) #t (check-expression-types? xs e xts ets prog))]))
+
+
+(define (check-if-clauses f xs xts e2 e3 et p id prog)
   (match p
-    ['char?        (check-if-clauses-type f xs xts e2 e3 et 'Char id) ]
-    ['eof-object?  (check-if-clauses-type f xs xts e2 e3 et 'Eof id) ]
-    ['empty?       (check-if-clauses-type f xs xts e2 e3 et 'Empty id) ]
-    ['box?         (check-if-clauses-type f xs xts e2 e3 et 'Box id) ]
-    ['cons?        (check-if-clauses-type f xs xts e2 e3 et 'Cons id) ]
-    ['vector?      (check-if-clauses-type f xs xts e2 e3 et 'Vector id) ]
-    ['string?      (check-if-clauses-type f xs xts e2 e3 et 'Str id) ]))
+    ['char?        (check-if-clauses-type f xs xts e2 e3 et 'Char id prog) ]
+    ['eof-object?  (check-if-clauses-type f xs xts e2 e3 et 'Eof id prog) ]
+    ['empty?       (check-if-clauses-type f xs xts e2 e3 et 'Empty id prog) ]
+    ['box?         (check-if-clauses-type f xs xts e2 e3 et 'Box id prog) ]
+    ['cons?        (check-if-clauses-type f xs xts e2 e3 et 'Cons id prog) ]
+    ['vector?      (check-if-clauses-type f xs xts e2 e3 et 'Vector id prog) ]
+    ['string?      (check-if-clauses-type f xs xts e2 e3 et 'Str id prog) ]))
 
-(define (check-if-clauses-type f xs xts e2 e3 et pt id)
+(define (check-if-clauses? xs xts e2 e3 et p id prog)
+  (match p
+    ['char?        (check-if-clauses-type? xs xts e2 e3 et 'Char id prog) ]
+    ['eof-object?  (check-if-clauses-type? xs xts e2 e3 et 'Eof id prog) ]
+    ['empty?       (check-if-clauses-type? xs xts e2 e3 et 'Empty id prog) ]
+    ['box?         (check-if-clauses-type? xs xts e2 e3 et 'Box id prog) ]
+    ['cons?        (check-if-clauses-type? xs xts e2 e3 et 'Cons id prog) ]
+    ['vector?      (check-if-clauses-type? xs xts e2 e3 et 'Vector id prog) ]
+    ['string?      (check-if-clauses-type? xs xts e2 e3 et 'Str id prog) ]))
+
+(define (check-if-clauses-type f xs xts e2 e3 et pt id prog)
   (if (type-contain pt (list-ref xts id)) 
-    (check-expression-type f xs e2 xts et)
-    (if (type-contain (list-ref xts id) pt) 
-      (begin (check-expression-type f xs e2 (type-replace-id xts id pt) et) (check-expression-type f xs e3 (type-rule-out-id xts id pt) et))
-      (check-expression-type f xs e3 xts et))))
+    (check-expression-type f xs e2 xts et prog)
+    (if (type-contain (list-ref xts id) pt)
+      (match (type-remain xts id pt)
+        ['() (check-expression-type f xs e2 (type-replace-id xts id pt) et prog)]
+        [_ (begin (check-expression-type f xs e2 (type-replace-id xts id pt) et prog) (check-expression-type f xs e3 (type-rule-out-id xts id pt) et prog))]) 
+      (check-expression-type f xs e3 xts et prog))))
 
-(define (get-if-clauses-expression-type xs xts e2 e3 p id)
+(define (check-if-clauses-type? xs xts e2 e3 et pt id prog)
+  (if (type-contain pt (list-ref xts id)) 
+    (check-expression-type? xs e2 xts et prog)
+    (if (type-contain (list-ref xts id) pt)
+      (match (type-remain xts id pt)
+        ['() (check-expression-type? xs e2 (type-replace-id xts id pt) et prog)]
+        [_ (begin (check-expression-type? xs e2 (type-replace-id xts id pt) et prog) (check-expression-type? xs e3 (type-rule-out-id xts id pt) et prog))]) 
+      (check-expression-type? xs e3 xts et prog))))
+
+(define (get-if-clauses-expression-type xs xts e2 e3 p id prog)
   (match p
-    ['char?        (get-if-clauses-expression-type-internal xs xts e2 e3 'Char id) ]
-    ['eof-object?  (get-if-clauses-expression-type-internal xs xts e2 e3 'Eof id) ]
-    ['empty?       (get-if-clauses-expression-type-internal xs xts e2 e3 'Empty id) ]
-    ['box?         (get-if-clauses-expression-type-internal xs xts e2 e3 'Box id) ]
-    ['cons?        (get-if-clauses-expression-type-internal xs xts e2 e3 'Cons id) ]
-    ['vector?      (get-if-clauses-expression-type-internal xs xts e2 e3 'Vector id) ]
-    ['string?      (get-if-clauses-expression-type-internal xs xts e2 e3 'Str id) ]))
+    ['char?        (get-if-clauses-expression-type-internal xs xts e2 e3 'Char id prog) ]
+    ['eof-object?  (get-if-clauses-expression-type-internal xs xts e2 e3 'Eof id prog) ]
+    ['empty?       (get-if-clauses-expression-type-internal xs xts e2 e3 'Empty id prog) ]
+    ['box?         (get-if-clauses-expression-type-internal xs xts e2 e3 'Box id prog) ]
+    ['cons?        (get-if-clauses-expression-type-internal xs xts e2 e3 'Cons id prog) ]
+    ['vector?      (get-if-clauses-expression-type-internal xs xts e2 e3 'Vector id prog) ]
+    ['string?      (get-if-clauses-expression-type-internal xs xts e2 e3 'Str id prog) ]))
 
-(define (get-if-clauses-expression-type-internal xs xts e2 e3 pt id)
+(define (get-if-clauses-expression-type-internal xs xts e2 e3 pt id prog)
   (if (type-contain (list-ref xts id) pt)
-    (type-add (get-expression-type xs (type-replace-id xts id pt) e2) (get-expression-type xs (type-rule-out-id xts id pt) e3))
-    (get-expression-type xs xts e3)))
+    (match (type-remain xts id pt)
+      ['() (get-expression-type xs xts e3 prog)]
+      [_ (type-add (get-expression-type xs (type-replace-id xts id pt) e2 prog) (get-expression-type xs (type-rule-out-id xts id pt) e3 prog))])
+    (get-expression-type xs xts e3 prog)))
 
 (define (get-func-from-prog g prog)
     (match prog
-      [Prog ds e] (get-func-from defs g ds)))
+      [(Prog ds e) (get-func-from-defs g ds)]))
 
 (define (get-func-from-defs g ds)
   (match ds
@@ -119,33 +154,38 @@
         [(TypedDefn f xs e xts et) (if (eq? f g) d (get-func-from-defs g ds))])]))
 
 (define (check-func-params g xs es xts g-xts prog)
-  (check-func-params-idx g xs es xts g-xts prog 0))
+  (match es
+    [(? list?) (check-func-params-idx g xs es xts g-xts prog 0)]
+    [_ (check-single-func-params g xs es xts g-xts prog)]))
+
+(define (check-single-func-params g xs es xts g-xts prog)
+  (check-expression-type g xs es xts g-xts prog))
 
 (define (check-func-params-idx g xs es xts g-xts prog idx)
   (if (eq? (length es) idx) (void) 
-  (begin (check-expression-type g xs (list-ref es idx) xts (list-ref g-xts idx) prog) 
+  (begin (check-expression-type g xs (list-ref es idx) xts (list-ref g-xts idx) prog)
     (check-func-params-idx g xs es xts g-xts prog (+ idx 1)))))
 
-(define (get-expression-type xs xts e)
+(define (get-expression-type xs xts e prog)
   (match e
     [(Int i)            'Int]
     [(Bool b)           'Bool]
     [(Char c)           'Char]
     [(Eof)              'Eof]
     [(Empty)            'Empty]
-    [(Var x)            (let ([id-or-f (index-of x xs)]) (if (not id-or-f) (error 'undefined-error "In expression: [~a], undefined variable: ~a" e x) (list-ref xts id-or-f))) ]
+    [(Var x)            (let ([id-or-f (index-of xs x)]) (if (not id-or-f) (error 'undefined-error "In expression: [~a], undefined variable: ~a" e x) (list-ref xts id-or-f))) ]
     ; [(Var x)            (let ([xt (list-ref xts (index-of x xs))]) (if (type-contain et xt) (void) (error 'type-error "expected: ~a; actual: ~a" et xt))]       ;; type check
     [(Str s)            'Str]
     [(Prim0 p)
       (match p
         ['void          'Void]
-        ['read-byte     '(Int Eof))]
-        ['peek-byte     '(Int Eof))]] 
+        ['read-byte     '(Int Eof)]
+        ['peek-byte     '(Int Eof)])] 
     [(Prim1 p e0)        
       (match p
         ['add1          'Int]  ; Int -> Int
         ['sub1          'Int]  ; Int -> Int
-        ['zero?         'Bool] ; Any -> Bool
+        ['zero?         'Bool] ; Int -> Bool
         ['char?         'Bool] ; Any -> Bool
         ['char->integer 'Int]  ; Char -> Int
         ['integer->char 'Char] ; Int -> Char
@@ -154,15 +194,15 @@
         ['box           'Box] ; Any -> Box
         ['unbox  
           (match e0
-            [(Box b) (get-expression-type xs xts b)]
+            [(Prim1 'box b) (get-expression-type xs xts b prog)]
             [_ (error 'type-error "In expression: [~a], expression ~a is not a Box!" e e0)])]  ; Box -> Any
         ['car 
           (match e0
-            [(Cons a b) (get-expression-type xs xts a)]
+            [(Prim2 'cons a b) (get-expression-type xs xts a prog)]
             [_ (error 'type-error "In expression: [~a], expression ~a is not a Cons!" e e0)])] ; Cons -> Any
         ['cdr
           (match e0
-            [(Cons a b) (get-expression-type xs xts b)]
+            [(Prim2 'cons a b) (get-expression-type xs xts b prog)]
             [_ (error 'type-error "In expression: [~a], expression ~a is not a Cons!" e e0)])] ; Cons -> Any
         ['empty?        'Bool] ; Any -> Bool 
         ['box?          'Bool] ; Any -> Bool 
@@ -184,7 +224,7 @@
         ['vector-ref  (match e1
           [(Prim2 p2 e21 e22)
           #:when (= p2 'make-vector)
-          (get-expression-type xs xts e22)]
+          (get-expression-type xs xts e22 prog)]
           [_ (error 'unsupported error "vector-ref is only used after make-vector")])]
         ['make-string 'String]
         ['string-ref  'Char]
@@ -194,26 +234,25 @@
         ['vector-set! 'Void])] ; Vector Int Any -> Void
     [(If e1 e2 e3)
         (match e1
-          [(Bool #t)  (get-expression-type xs xts e2)]
-          [(Bool #f)  (get-expression-type xs xts e3)]
+          [(Bool #t)  (get-expression-type xs xts e2 prog)]
+          [(Bool #f)  (get-expression-type xs xts e3 prog)]
           [(Prim1 p e0) ;; match predicate '(char? eof-object? empty? box? cons? vector? string?)
-            #:when (is-member p op1-predicates)
+            ;#:when (is-member p op1-predicates)
             (=> exit)
             (match e0
-              [(Var x) (let ([id-or-f (index-of x xs)]) 
+              [(Var x) (if (not (is-member p op1-predicates)) (exit) (let ([id-or-f (index-of xs x)]) 
                 (if (not id-or-f) (error 'undefined-error "In expression: ~a, undefined variable: ~a" e x) 
-                (get-if-clauses-expression-type xs xts e2 e3 p id-or-f)))]
+                (get-if-clauses-expression-type xs xts e2 e3 p id-or-f prog))))]
               [_ (exit)]
             )]          
-          [(? (check-expression-type? xs e1 xts 'Bool)) (type-add (get-expression-type xs xts e2) (get-expression-type xs xts e3)))]
-          [_ (get-expression-type xs xts e2)]))]      ;; type check
-    [(Begin e1 e2)      (get-expression-type xs xts e2)]      ;; type check
+          [(? (check-expression-type? xs e1 xts 'Bool prog)) (type-add (get-expression-type xs xts e2 prog) (get-expression-type xs xts e3 prog))]
+          [_ (get-expression-type xs xts e2 prog)])]      ;; type check
+    [(Begin e1 e2)      (get-expression-type xs xts e2 prog)]      ;; type check
     [(Let x e1 e2)      
-      (if (is-member x xs) (get-expression-type xs xts e2)
-        (get-expression-type (append-element xs x) (append-element xts (get-expression-type xs xts e1)) e2))]      ;; type check
+      (if (is-member x xs) (get-expression-type xs xts e2 prog)
+        (get-expression-type (append-element xs x) (append-element xts (get-expression-type xs xts e1 prog)) e2 prog))]      ;; type check
     [(App g es)  (let ([g-func (get-func-from-prog g prog)]) (match g-func
-      [(TypedDefn g g-xs g-xts g-e g-et) g-et]))])])
-  )
+      [(TypedDefn g g-xs g-xts g-e g-et) g-et]))]))
 
 
 (define (check-expression-type f xs e xts et prog)
@@ -223,148 +262,162 @@
     [(Char c)           (check-prim f e et 'Char)]
     [(Eof)              (check-prim f e et 'Eof)]
     [(Empty)            (check-prim f e et 'Empty)]
-    [(Var x)            (let ([id-or-f (index-of x xs)]) (if (not id-or-f) (error 'undefined-error "In function.expression: [~a.~a], undefined variable: ~a" f e x) (check-prim f e et (list-ref xts id-or-f))) ]
+    [(Var x)            (let ([id-or-f (index-of xs x)]) (if (not id-or-f) (error 'undefined-error "In function.expression: [~a.~a], undefined variable: ~a" f e x) (check-prim f e et (list-ref xts id-or-f))))]
     ; [(Var x)            (let ([xt (list-ref xts (index-of x xs))]) (if (type-contain et xt) (void) (error 'type-error "expected: ~a; actual: ~a" et xt))]       ;; type check
     [(Str s)            (check-prim f e et 'Str)]
     [(Prim0 p)
       (match p
         ['void          (check-prim f e et 'Void)]
         ['read-byte     (check-prim-list f e et '(Int Eof))]
-        ['peek-byte     (check-prim-list f e et '(Int Eof))]] 
+        ['peek-byte     (check-prim-list f e et '(Int Eof))])] 
     [(Prim1 p e0)        
       (match p
-        ['add1          (begin (check-op-return-type f e et 'Int) (check-expression-type f xs e0 xts 'Int))]  ; Int -> Int
-        ['sub1          (begin (check-op-return-type f e et 'Int) (check-expression-type f xs e0 xts 'Int))]  ; Int -> Int
-        ['zero?         (begin (check-op-return-type f e et 'Bool) (check-expression-type f xs e0 xts 'Any))] ; Any -> Bool
-        ['char?         (begin (check-op-return-type f e et 'Bool) (check-expression-type f xs e0 xts 'Any))] ; Any -> Bool
-        ['char->integer (begin (check-op-return-type f e et 'Int) (check-expression-type f xs e0 xts 'Char))]  ; Char -> Int
-        ['integer->char (begin (check-op-return-type f e et 'Char) (check-expression-type f xs e0 xts 'Int))] ; Int -> Char
-        ['eof-object?   (begin (check-op-return-type f e et 'Bool) (check-expression-type f xs e0 xts 'Any))] ; Any -> Bool
-        ['write-byte    (begin (check-op-return-type f e et 'Void) (check-expression-type f xs e0 xts 'Int))] ; Int -> Void
-        ['box           (begin (check-op-return-type f e et 'Box) (check-expression-type f xs e0 xts 'Any))] ; Any -> Box
-        ['unbox         (check-expression-type f xs e0 xts 'Box)]  ; Box -> Any
-        ['car           (check-expression-type f xs e0 xts 'Cons)] ; Cons -> Any
-        ['cdr           (check-expression-type f xs e0 xts 'Cons)] ; Cons -> Any
-        ['empty?        (begin (check-op-return-type f e et 'Bool) (check-expression-type f xs e0 xts 'Any))] ; Any -> Bool 
-        ['box?          (begin (check-op-return-type f e et 'Bool) (check-expression-type f xs e0 xts 'Any))] ; Any -> Bool 
-        ['cons?         (begin (check-op-return-type f e et 'Bool) (check-expression-type f xs e0 xts 'Any))] ; Any -> Bool 
-        ['vector?       (begin (check-op-return-type f e et 'Bool) (check-expression-type f xs e0 xts 'Any))] ; Any -> Bool 
-        ['string?       (begin (check-op-return-type f e et 'Bool) (check-expression-type f xs e0 xts 'Any))] ; Any -> Bool 
-        ['vector-length (begin (check-op-return-type f e et 'Int) (check-expression-type f xs e0 xts 'Vector))] ; Vector -> Int 
-        ['string-length (begin (check-op-return-type f e et 'Int) (check-expression-type f xs e0 xts 'Str))] ; Str -> Int 
+        ['add1          (begin (check-op-return-type f e et 'Int) (check-expression-type f xs e0 xts 'Int prog))]  ; Int -> Int
+        ['sub1          (begin (check-op-return-type f e et 'Int) (check-expression-type f xs e0 xts 'Int prog))]  ; Int -> Int
+        ['zero?         (begin (check-op-return-type f e et 'Bool) (check-expression-type f xs e0 xts 'Int prog))] ; Int -> Bool
+        ['char?         (begin (check-op-return-type f e et 'Bool) (check-expression-type f xs e0 xts '() prog))] ; Any -> Bool
+        ['char->integer (begin (check-op-return-type f e et 'Int) (check-expression-type f xs e0 xts 'Char prog))]  ; Char -> Int
+        ['integer->char (begin (check-op-return-type f e et 'Char) (check-expression-type f xs e0 xts 'Int prog))] ; Int -> Char
+        ['eof-object?   (begin (check-op-return-type f e et 'Bool) (check-expression-type f xs e0 xts '() prog))] ; Any -> Bool
+        ['write-byte    (begin (check-op-return-type f e et 'Void) (check-expression-type f xs e0 xts 'Int prog))] ; Int -> Void
+        ['box           (begin (check-op-return-type f e et 'Box) (check-expression-type f xs e0 xts '() prog))] ; Any -> Box
+        ['unbox         (check-expression-type f xs e0 xts 'Box prog)]  ; Box -> Any
+        ['car           (check-expression-types f xs e0 xts `(Cons (Listof ,et)) prog)] ; Cons -> Any
+        ['cdr           (check-expression-types f xs e0 xts `(Cons ,et (Listof ,et)) prog)] ; Cons -> Any
+        ['empty?        (begin (check-op-return-type f e et 'Bool) (check-expression-type f xs e0 xts '() prog))] ; Any -> Bool 
+        ['box?          (begin (check-op-return-type f e et 'Bool) (check-expression-type f xs e0 xts '() prog))] ; Any -> Bool 
+        ['cons?         (begin (check-op-return-type f e et 'Bool) (check-expression-type f xs e0 xts '() prog))] ; Any -> Bool 
+        ['vector?       (begin (check-op-return-type f e et 'Bool) (check-expression-type f xs e0 xts '() prog))] ; Any -> Bool 
+        ['string?       (begin (check-op-return-type f e et 'Bool) (check-expression-type f xs e0 xts '() prog))] ; Any -> Bool 
+        ['vector-length (begin (check-op-return-type f e et 'Int) (check-expression-type f xs e0 xts 'Vector prog))] ; Vector -> Int 
+        ['string-length (begin (check-op-return-type f e et 'Int) (check-expression-type f xs e0 xts 'Str prog))] ; Str -> Int 
         )]        ;; type check
     [(Prim2 p e1 e2)    
       (match p
-        ['+   (begin (check-op-return-type f e et 'Int) (begin (check-expression-type f xs e1 xts 'Int) (check-expression-type f xs e2 xts 'Int)))] ; Int Int -> Int
-        ['-   (begin (check-op-return-type f e et 'Int) (begin (check-expression-type f xs e1 xts 'Int) (check-expression-type f xs e2 xts 'Int)))] ; Int Int -> Int
-        ['<   (begin (check-op-return-type f e et 'Bool) (begin (check-expression-type f xs e1 xts 'Int) (check-expression-type f xs e2 xts 'Int)))] ; Int Int -> Bool
-        ['=   (begin (check-op-return-type f e et 'Bool) (begin (check-expression-type f xs e1 xts 'Int) (check-expression-type f xs e2 xts 'Int)))] ; Int Int -> Bool
-        ['cons  (begin (check-op-return-type f e et 'Cons) (begin (check-expression-type f xs e1 xts 'Any) (check-expression-type f xs e2 xts 'Any)))] ; Any Any -> Cons
-        ['eq?   (begin (check-op-return-type f e et 'Bool) (begin (check-expression-type f xs e1 xts 'Any) (check-expression-type f xs e2 xts 'Any)))]  ; Any Any -> Bool
-        ['make-vector (begin (check-op-return-type f e et 'Vector) (begin (check-expression-type f xs e1 xts 'Int) (check-expression-type f xs e2 xts 'Any)))]  ; Int Any -> Vector
-        ['vector-ref  (begin (check-expression-type f xs e1 xts 'Vector) (check-expression-type f xs e2 xts 'Int))] ; Vector Int -> Any
-        ['make-string (begin (check-op-return-type f e et 'Str) (begin (check-expression-type f xs e1 xts 'Int) (check-expression-type f xs e2 xts 'Char)))]  ; Int Char -> Str
-        ['string-ref  (begin (check-op-return-type f e et 'Char) (begin (check-expression-type f xs e1 xts 'Str) (check-expression-type f xs e2 xts 'Int)))] ; Str Int -> Char
+        ['+   (begin (check-op-return-type f e et 'Int) (begin (check-expression-type f xs e1 xts 'Int prog) (check-expression-type f xs e2 xts 'Int prog)))] ; Int Int -> Int
+        ['-   (begin (check-op-return-type f e et 'Int) (begin (check-expression-type f xs e1 xts 'Int prog) (check-expression-type f xs e2 xts 'Int prog)))] ; Int Int -> Int
+        ['<   (begin (check-op-return-type f e et 'Bool) (begin (check-expression-type f xs e1 xts 'Int prog) (check-expression-type f xs e2 xts 'Int prog)))] ; Int Int -> Bool
+        ['=   (begin (check-op-return-type f e et 'Bool) (begin (check-expression-type f xs e1 xts 'Int prog) (check-expression-type f xs e2 xts 'Int prog)))] ; Int Int -> Bool
+        ['cons  (match et
+          ['() (begin (check-expression-type f xs e1 xts '() prog) (check-expression-type f xs e2 xts '() prog))]
+          [(list Listof tf) (begin (check-expression-type f xs e1 xts tf prog) (check-expression-type f xs e2 xts et prog))]
+          ['Cons (begin (check-expression-type f xs e1 xts '() prog) (check-expression-type f xs e2 xts '() prog))]
+          [_ (error 'type-error "In function.expression [~a.~a], expected: ~a; actual: ~a" f e et 'Cons)])] ; Any Any -> Cons
+        ['eq?   (begin (check-op-return-type f e et 'Bool) (begin (check-expression-type f xs e1 xts '() prog) (check-expression-type f xs e2 xts '() prog)))]  ; Any Any -> Bool
+        ['make-vector (begin (check-op-return-type f e et 'Vector) (begin (check-expression-type f xs e1 xts 'Int prog) (check-expression-type f xs e2 xts '() prog)))]  ; Int Any -> Vector
+        ['vector-ref  (begin (check-expression-type f xs e1 xts 'Vector prog) (check-expression-type f xs e2 xts 'Int prog))] ; Vector Int -> Any
+        ['make-string (begin (check-op-return-type f e et 'Str) (begin (check-expression-type f xs e1 xts 'Int prog) (check-expression-type f xs e2 xts 'Char prog)))]  ; Int Char -> Str
+        ['string-ref  (begin (check-op-return-type f e et 'Char) (begin (check-expression-type f xs e1 xts 'Str prog) (check-expression-type f xs e2 xts 'Int prog)))] ; Str Int -> Char
       )]
     [(Prim3 p e1 e2 e3) 
       (match p
         ['vector-set! (begin (check-op-return-type f e et 'Void) 
-        (begin (check-expression-type f xs e1 xts 'Vector) 
-        (begin (check-expression-type f xs e2 xts 'Int) (check-expression-type f xs e3 xts 'Any))))])] ; Vector Int Any -> Void
+        (begin (check-expression-type f xs e1 xts 'Vector prog) 
+        (begin (check-expression-type f xs e2 xts 'Int prog) (check-expression-type f xs e3 xts '() prog))))])] ; Vector Int Any -> Void
     [(If e1 e2 e3)
-      (begin (check-expression-type f xs e1 xts 'Any) 
+      (begin (check-expression-type f xs e1 xts '() prog) 
         (match e1
-          [(Bool #t)  (check-expression-type f xs e2 xts et)]
-          [(Bool #f)  (check-expression-type f xs e3 xts et)]
+          [(Bool #t)  (check-expression-type f xs e2 xts et prog)]
+          [(Bool #f)  (check-expression-type f xs e3 xts et prog)]
           [(Prim1 p e0) ;; match predicate '(char? eof-object? empty? box? cons? vector? string?)
-            #:when (is-member p op1-predicates)
+            ;#:when (is-member p op1-predicates)
             (=> exit)
             (match e0
-              [(Var x) (let ([id-or-f (index-of x xs)]) 
-                (if (not id-or-f) (error 'undefined-error "In function.expression: [~a.~a], undefined variable: ~a" f e x) 
-                (check-if-clauses f xs xts e2 e3 et p id-or-f)))]
+              [(Var x) (if (not (is-member p op1-predicates)) (exit) (let ([id-or-f (index-of xs x)]) 
+                (if (not id-or-f) (error 'undefined-error "In expression: ~a, undefined variable: ~a" e x) 
+                (check-if-clauses f xs xts e2 e3 et p id-or-f prog))))]
               [_ (exit)]
             )]          
-          [(? (check-expression-type? f xs e1 xts 'Bool)) (check-expressions-type f xs '(,e2 ,e3) xts et)]
-          [_ (check-expression-type f xs e2 xts et)]))]      ;; type check
-    [(Begin e1 e2)      (begin (check-expression-type f xs e1 xts 'Any) (check-expression-type f xs e2 xts et))]      ;; type check
+          [_ (if (check-expression-type? xs e1 xts 'Bool prog) (check-expressions-type f xs `(,e2 ,e3) xts et prog) (check-expression-type f xs e2 xts et prog))]))]      ;; type check
+    [(Begin e1 e2)      (begin (check-expression-type f xs e1 xts '() prog) (check-expression-type f xs e2 xts et prog))]      ;; type check
     [(Let x e1 e2)      
       (if (is-member x xs) 
-        (begin (check-expression-type f xs e1 xts (list-ref xts (index-of xs x))) 
-              (check-expression-type f xs e2 xts et))
-        (check-expression-type f (append-element xs x) e2 (append-element xts (get-expression-type xs xts e1)) et))]      ;; type check
+        (begin (check-expression-type f xs e1 xts (list-ref xts (index-of xs x)) prog) 
+              (check-expression-type f xs e2 xts et prog))
+        (check-expression-type f (append-element xs x) e2 (append-element xts (get-expression-type xs xts e1 prog)) et prog))]      ;; type check
     [(App g es)  (let ([g-func (get-func-from-prog g prog)]) (match g-func
-      [(TypedDefn g g-xs g-xts g-e g-et)
+      [(TypedDefn g g-xs g-e g-xts g-et)
         (begin (check-prim f e et g-et)
-              (check-func-params g xs es xts g-xts prog))]))])])
-  )
+              (check-func-params g xs es xts g-xts prog))]))]))
 
 ;; TODO: fix
-(define (check-expression-type? xs e xts et)
+(define (check-expression-type? xs e xts et prog)
   (match e
     [(Int i)            (check-prim? et 'Int)]
     [(Bool b)           (check-prim? et 'Bool)]
     [(Char c)           (check-prim? et 'Char)]
     [(Eof)              (check-prim? et 'Eof)]
     [(Empty)            (check-prim? et 'Empty)]
-    [(Var x)            (check-prim? et (list-ref xts (index-of x xs))]
+    [(Var x)            (check-prim? et (list-ref xts (index-of xs x)))]
     [(Str s)            (check-prim? et 'Str)]
     [(Prim0 p)
       (match p
         ['void          (check-prim? et 'Void)]
         ['read-byte     (check-prim-list? '(Int Eof))]
-        ['peek-byte     (check-prim-list? '(Int Eof))]] 
+        ['peek-byte     (check-prim-list? '(Int Eof))])] 
     [(Prim1 p e0)        
       (match p
-        ['add1          (begin (check-op-return-type? et 'Int) (check-expression-type? xs e0 xts 'Int))]  ; Int -> Int
-        ['sub1          (begin (check-op-return-type? et 'Int) (check-expression-type? xs e0 xts 'Int))]  ; Int -> Int
-        ['zero?         (check-op-return-type? et 'Bool)] ; Any -> Bool
+        ['add1          (begin (check-op-return-type? et 'Int) (check-expression-type? xs e0 xts 'Int prog))]  ; Int -> Int
+        ['sub1          (begin (check-op-return-type? et 'Int) (check-expression-type? xs e0 xts 'Int prog))]  ; Int -> Int
+        ['zero?         (begin (check-op-return-type? et 'Bool) (check-expression-type? xs e0 xts 'Int prog))] ; Any -> Bool
         ['char?         (check-op-return-type? et 'Bool)] ; Any -> Bool
-        ['char->integer (begin (check-op-return-type? et 'Int) (check-expression-type? xs e0 xts 'Char))]  ; Char -> Int
-        ['integer->char (begin (check-op-return-type? et 'Char) (check-expression-type? xs e0 xts 'Int))] ; Int -> Char
+        ['char->integer (begin (check-op-return-type? et 'Int) (check-expression-type? xs e0 xts 'Char prog))]  ; Char -> Int
+        ['integer->char (begin (check-op-return-type? et 'Char) (check-expression-type? xs e0 xts 'Int prog))] ; Int -> Char
         ['eof-object?   (check-op-return-type? et 'Bool)] ; Any -> Bool
-        ['write-byte    (begin (check-op-return-type? et 'Void) (check-expression-type? xs e0 xts 'Int))] ; Int -> Void
+        ['write-byte    (begin (check-op-return-type? et 'Void) (check-expression-type? xs e0 xts 'Int prog))] ; Int -> Void
         ['box           (check-op-return-type? et 'Box)] ; Any -> Box
-        ['unbox         (check-expression-type? xs e0 xts 'Box)]  ; Box -> Any
-        ['car           (check-expression-type? xs e0 xts 'Cons)] ; Cons -> Any
-        ['cdr           (check-expression-type? xs e0 xts 'Cons)] ; Cons -> Any
+        ['unbox         (check-expression-type? xs e0 xts 'Box prog)]  ; Box -> Any
+        ['car           (check-expression-type? xs e0 xts 'Cons prog)] ; Cons -> Any
+        ['cdr           (check-expression-type? xs e0 xts 'Cons prog)] ; Cons -> Any
         ['empty?        (check-op-return-type? et 'Bool)] ; Any -> Bool 
         ['box?          (check-op-return-type? et 'Bool)] ; Any -> Bool 
         ['cons?         (check-op-return-type? et 'Bool)] ; Any -> Bool 
         ['vector?       (check-op-return-type? et 'Bool)] ; Any -> Bool 
         ['string?       (check-op-return-type? et 'Bool)] ; Any -> Bool 
-        ['vector-length (begin (check-op-return-type? et 'Int) (check-expression-type? xs e0 xts 'Vector))] ; Vector -> Int 
-        ['string-length (begin (check-op-return-type? et 'Int) (check-expression-type? xs e0 xts 'Str))] ; Str -> Int 
+        ['vector-length (begin (check-op-return-type? et 'Int) (check-expression-type? xs e0 xts 'Vector prog))] ; Vector -> Int 
+        ['string-length (begin (check-op-return-type? et 'Int) (check-expression-type? xs e0 xts 'Str prog))] ; Str -> Int 
         )]        ;; type check
     [(Prim2 p e1 e2)    
       (match p
-        ['+   (begin (check-op-return-type? et 'Int) (begin (check-expression-type? xs e1 xts 'Int)  (check-expression-type? xs e2 xts 'Int)))] ; Int Int -> Int
-        ['-   (begin (check-op-return-type? et 'Int) (begin (check-expression-type? xs e1 xts 'Int)  (check-expression-type? xs e2 xts 'Int)))] ; Int Int -> Int
-        ['<   (begin (check-op-return-type? et 'Bool) (begin (check-expression-type? xs e1 xts 'Int) (check-expression-type? xs e2 xts 'Int)))] ; Int Int -> Bool
-        ['=   (begin (check-op-return-type? et 'Bool) (begin (check-expression-type? xs e1 xts 'Int) (check-expression-type? xs e2 xts 'Int)))] ; Int Int -> Bool
+        ['+   (begin (check-op-return-type? et 'Int) (begin (check-expression-type? xs e1 xts 'Int prog)  (check-expression-type? xs e2 xts 'Int prog)))] ; Int Int -> Int
+        ['-   (begin (check-op-return-type? et 'Int) (begin (check-expression-type? xs e1 xts 'Int prog)  (check-expression-type? xs e2 xts 'Int prog)))] ; Int Int -> Int
+        ['<   (begin (check-op-return-type? et 'Bool) (begin (check-expression-type? xs e1 xts 'Int prog) (check-expression-type? xs e2 xts 'Int prog)))] ; Int Int -> Bool
+        ['=   (begin (check-op-return-type? et 'Bool) (begin (check-expression-type? xs e1 xts 'Int prog) (check-expression-type? xs e2 xts 'Int prog)))] ; Int Int -> Bool
         ['cons  (check-op-return-type? et 'Cons)] ; Any Any -> Cons
         ['eq?   (check-op-return-type? et 'Bool)]  ; Any Any -> Bool
-        ['make-vector (begin (check-op-return-type? et 'Vector) (check-expression-type? xs e1 xts 'Int))]  ; Int Any -> Vector
-        ['vector-ref  (begin (check-expression-type? xs e1 xts 'Vector) (check-expression-type? xs e2 xts 'Int))] ; Vector Int -> Any
-        ['make-string (begin (check-op-return-type? et 'Str) (begin (check-expression-type? xs e1 xts 'Int) (check-expression-type? xs e2 xts 'Char)))]  ; Int Char -> Str
-        ['string-ref  (begin (check-op-return-type? et 'Char) (begin (check-expression-type? xs e1 xts 'Str) (check-expression-type? xs e2 xts 'Int)))] ; Str Int -> Char
+        ['make-vector (begin (check-op-return-type? et 'Vector) (check-expression-type? xs e1 xts 'Int prog))]  ; Int Any -> Vector
+        ['vector-ref  (begin (check-expression-type? xs e1 xts 'Vector prog) (check-expression-type? xs e2 xts 'Int prog))] ; Vector Int -> Any
+        ['make-string (begin (check-op-return-type? et 'Str) (begin (check-expression-type? xs e1 xts 'Int prog) (check-expression-type? xs e2 xts 'Char prog)))]  ; Int Char -> Str
+        ['string-ref  (begin (check-op-return-type? et 'Char) (begin (check-expression-type? xs e1 xts 'Str prog) (check-expression-type? xs e2 xts 'Int prog)))] ; Str Int -> Char
       )]
     [(Prim3 p e1 e2 e3) 
       (match p
-        ['vector-set! (begin (check-op-return-type? et 'Void) (begin (check-expression-type? xs e1 xts 'Vector) (check-expression-type? xs e2 xts 'Int)))])] ; Vector Int Any -> Void
+        ['vector-set! (begin (check-op-return-type? et 'Void) (begin (check-expression-type? xs e1 xts 'Vector prog) (check-expression-type? xs e2 xts 'Int prog)))])] ; Vector Int Any -> Void
 ;;;;;;;;;;;;;; TODO: fix the following ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;    
     [(If e1 e2 e3)
-      (begin (check-expression-type? xs e1 xts 'Any) 
+      (begin (check-expression-type? xs e1 xts '() prog) 
         (match e1
-          [(Bool #t)  (check-expression-type? xs e2 xts et)]
-          [(Bool #f)  (check-expression-type? xs e3 xts et)]
-          [(Prim1 p e0)]          ;; match predicate
-          [(Prim2 p e01 e02)]     ;; match predicate
-          [(? (check-expression-type? ))]))]      ;; type check
-    [(Begin e1 e2)      (compile-begin e1 e2 c)]      ;; type check
-    [(Let x e1 e2)      (compile-let x e1 e2 c)]      ;; type check
-    [(App g es)         (compile-app g es c)])])
-  )
+          [(Bool #t)  (check-expression-type? xs e2 xts et prog)]
+          [(Bool #f)  (check-expression-type? xs e3 xts et prog)]
+          [(Prim1 p e0) ;; match predicate '(char? eof-object? empty? box? cons? vector? string?)
+            ;#:when (is-member p op1-predicates)
+            (=> exit)
+            (match e0
+              [(Var x)
+               (if (not (is-member p op1-predicates)) (exit) (let ([id-or-f (index-of xs x)]) 
+                (if (not id-or-f) (error 'undefined-error "In expression: ~a, undefined variable: ~a" e x) 
+                (check-if-clauses? xs xts e2 e3 et p id-or-f prog))))]
+              [_ (exit)]
+            )]          
+          [_ (if (check-expression-type? xs e1 xts 'Bool prog) (check-expressions-type? xs `(,e2 ,e3) xts et prog) (check-expression-type? xs e2 xts et prog))]))]      ;; type check
+    [(Begin e1 e2)      (begin (check-expression-type? xs e1 xts '() prog) (check-expression-type? xs e2 xts et prog))]      ;; type check
+    [(Let x e1 e2)      
+      (if (is-member x xs) 
+        (begin (check-expression-type? xs e1 xts (list-ref xts (index-of xs x)) prog) 
+              (check-expression-type? xs e2 xts et prog))
+        (check-expression-type? (append-element xs x) e2 (append-element xts (get-expression-type xs xts e1 prog)) et prog))]      ;; type check
+    [(App g es) (let ([g-func (get-func-from-prog g prog)]) (match g-func
+      [(TypedDefn g g-xs g-xts g-e g-et) (check-prim? et g-et)]))]))
 
 
 
@@ -389,13 +442,13 @@
   (match d
     [(TypedDefn f xs e xts et)
      (seq (Label (symbol->label f))
-          (compile-e e (reverse xs) (reverse xts))
+          (compile-e e (reverse xs))
           (Add rsp (* 8 (length xs))) ; pop args
           (Ret))]))
 
 ;; Expr CEnv -> Asm
 ;; check if c matches the type of xt
-(define (compile-e e c xts et)
+(define (compile-e e c)
   (match e
     [(Int i)            (compile-value i)]
     [(Bool b)           (compile-value b)]
