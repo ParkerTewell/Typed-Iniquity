@@ -425,10 +425,6 @@
     [(App g es) (let ([g-func (get-func-from-prog g prog)]) (match g-func
       [(TypedDefn g g-xs g-xts g-e g-et) (check-prim? et g-et)]))]))
 
-
-
-
-
 (define (externs)
   (seq (Extern 'peek_byte)
        (Extern 'read_byte)
@@ -477,16 +473,17 @@
 
 ;; Checks if x is in xts
 ;; Raises an error otherwies
+;; (member x xt) erroring
 (define (check-type x xs xts)
   (match* (xs xts)
-    [((cons y xs) (cons xt xts)) (if (equal? x y) (check-type x xs xts) (if (member x xts) (seq) (seq (Jmp 'raise_error_align))))]
-    [_ (Jmp 'raise_error_align)]))
+    [((cons y xs) (cons xt xts)) (if (equal? x y) (check-type x xs xts) (if (member x xt) (seq) (seq (Jmp 'raise_error_align))))]
+    [(_ _) (Jmp 'raise_error_align)]))
 
 ;; Id CEnv -> Asm
 (define (compile-variable x c xs xts)
   (let ((i (lookup x c)))
-    (seq (Mov rax (Offset rsp i))
-         (check-type x xs xts))))
+    (seq (Mov rax (Offset rsp i)))))
+         ;;(check-type x c xs xts))))
 
 ;; String -> Asm
 (define (compile-string s)
