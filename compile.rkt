@@ -453,24 +453,23 @@
           (Ret))]))
 
 ;; Expr CEnv -> Asm
-;; check if c matches the type of xt
-(define (compile-e e c)
+(define (compile-e e c xs xts)
   (match e
     [(Int i)            (compile-value i)]
     [(Bool b)           (compile-value b)]
     [(Char c)           (compile-value c)]
     [(Eof)              (compile-value eof)]
     [(Empty)            (compile-value '())]
-    [(Var x)            (compile-variable x c)]       ;; type check
+    [(Var x)            (compile-variable x c xs xts)]       
     [(Str s)            (compile-string s)]
-    [(Prim0 p)          (compile-prim0 p c)]          ;; type check
-    [(Prim1 p e)        (compile-prim1 p e c)]        ;; type check
-    [(Prim2 p e1 e2)    (compile-prim2 p e1 e2 c)]    ;; type check
-    [(Prim3 p e1 e2 e3) (compile-prim3 p e1 e2 e3 c)] ;; type check
-    [(If e1 e2 e3)      (compile-if e1 e2 e3 c)]      ;; type check
-    [(Begin e1 e2)      (compile-begin e1 e2 c)]      ;; type check
-    [(Let x e1 e2)      (compile-let x e1 e2 c)]      ;; type check
-    [(App f es)         (compile-app f es c)]))       ;; type check
+    [(Prim0 p)          (compile-prim0 p c)]         
+    [(Prim1 p e)        (compile-prim1 p e c)]        
+    [(Prim2 p e1 e2)    (compile-prim2 p e1 e2 c)]    
+    [(Prim3 p e1 e2 e3) (compile-prim3 p e1 e2 e3 c)] 
+    [(If e1 e2 e3)      (compile-if e1 e2 e3 c)]      
+    [(Begin e1 e2)      (compile-begin e1 e2 c)]      
+    [(Let x e1 e2)      (compile-let x e1 e2 c)] 
+    [(App f es)         (compile-app f es c)])) 
 
 ;; Value -> Asm
 (define (compile-value v)
@@ -478,14 +477,16 @@
 
 ;; Checks if x is in xts
 ;; Raises an error otherwies
-(define (check-type x xts)
-  (if (type? xts x) (seq (Jmp 'raise_error_align)) (seq)))
+(define (check-type x xs xts)
+  (match* (xs xts)
+    [((cons y xs) (cons xt xts)) (if (equal? x y) (check-type x xs xts) (if (member x xts) (seq) (seq (Jmp 'raise_error_align))))]
+    [_ (Jmp 'raise_error_align)]))
 
 ;; Id CEnv -> Asm
-(define (compile-variable x c xts)
+(define (compile-variable x c xs xts)
   (let ((i (lookup x c)))
     (seq (Mov rax (Offset rsp i))
-         (check-type x xts))))
+         (check-type x xs xts))))
 
 ;; String -> Asm
 (define (compile-string s)
